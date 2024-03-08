@@ -1,0 +1,364 @@
+---
+title: "GEOG 490 Final Project"
+author: "Anneke Brouwer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+## 1. Overview
+This project aims to explore a data set containing US and Canadian Fire Occurrences from 1986-2013. The analysis will mainly focus on attributes such as:
+
+- fire cause 
+- fire area
+- location 
+
+to examine the distribution of fires based on their cause and areas. Following the examination of the distributions of the fires, I hope to discuss the trends that are discernible from the data. 
+
+## 2. Load Necessary Libraries
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(ncdf4)
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(stars)
+library(maps)
+```
+
+## 3. Load Fire data set and grab variables
+importing the fire data set and opening the file
+```{r}
+# fire data set path
+fire_data_path <- "/Users/annekebrouwer/Documents/geog490/project/na10km_USCAN_1986-2013_ann_all.nc"
+
+# Open file
+nc <- nc_open(fire_data_path)
+```
+
+retrieving and defining variables from dataset
+```{r}
+# Grabbing variables
+all_area <- ncvar_get(nc, "all_area")
+all_area_tot <- ncvar_get(nc, "all_area_tot")
+all_npts <- ncvar_get(nc, "all_npts")
+all_npts_tot <- ncvar_get(nc, "all_npts_tot")
+hu_area <- ncvar_get(nc, "hu_area")
+hu_area_tot <- ncvar_get(nc, "hu_area_tot")
+hu_npts <- ncvar_get(nc, "hu_npts")
+hu_npts_tot <- ncvar_get(nc, "hu_npts_tot")
+lat <- ncvar_get(nc, "lat")
+lon <- ncvar_get(nc, "lon")
+lt_area <- ncvar_get(nc, "lt_area")
+lt_area_tot <- ncvar_get(nc, "lt_area_tot")
+lt_npts <- ncvar_get(nc, "lt_npts")
+lt_npts_tot <- ncvar_get(nc, "lt_npts_tot")
+time <- ncvar_get(nc, "time")
+time_bnds <- ncvar_get(nc, "time_bnds")
+unk_area <- ncvar_get(nc, "unk_area")
+unk_area_tot <- ncvar_get(nc, "unk_area_tot")
+unk_npts <- ncvar_get(nc, "unk_npts")
+unk_npts_tot <- ncvar_get(nc, "unk_npts_tot")
+x <- ncvar_get(nc, "x")
+y <- ncvar_get(nc, "y")
+```
+
+
+## 4. Exploring the total number of fires and their cause
+Let's make a histogram showing the number of fires caused by lightning, fires caused by humans, and fires with an unknown cause. 
+
+First, we must create a data frame that contains the total number of fires per cause. 
+
+```{r}
+# Create a DataFrame containing the number of human, lighting, and unknown caused fires
+fire_counts <- data.frame(
+  cause = c("Human", "Lightning", "Unknown"),
+  count = c(sum(hu_npts_tot, na.rm = TRUE), sum(lt_npts_tot, na.rm = TRUE), sum(unk_npts_tot, na.rm = TRUE))
+)
+```
+
+Next, we define a color palette and plot the data on a histogram using ggplot. 
+```{r fig.height=6, fig.width=10}
+# Define a custom color palette
+custom_colors <- c("Human" = "blue", "Lightning" = "orange", "Unknown" = "red")
+
+# Create the plot with custom colors
+ggplot(fire_counts, aes(x = cause, y = count, fill = cause)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = custom_colors) +
+  labs(x = "Cause of Fire", y = "Number of Fires", title = "Histogram of Fires by Cause US and Canada 1986-2013") +
+  theme_minimal()
+```
+
+According to this histogram, most fires were caused by humans. However, it is important to note that lightning caused over 400,000 fires between 1986-2013. Although it seems small in comparison to the human-caused fires bar that nears 1,500,000 fire occurrences, lightning fires make up a great deal of the total number of fire occurrences. 
+
+## 5. Observing the fire occurrence variation by year
+To grasp a better understanding of the pattern of fire occurrence, it is important to look at the dates in which these fires took place. Let's plot the number of fires per year for each fire cause between 1986-2013. 
+
+To start, we must convert the date format from days since 01-01-1900 to year.
+```{r}
+# Convert days since Jan 1, 1900 to a date format
+start_date <- as.Date("1900-01-01")
+date <- start_date + time - 1  # Subtract 1 because days since start_date starts from 1
+
+# Extract the year from the date
+year <- as.numeric(format(date, "%Y"))
+```
+
+Then, I created separate data frames for each fire cause that each contain the number of fires per year for every year between 1986 and 2013. 
+```{r}
+# Sum the lightning-caused fires across all grid cells for each year
+lt_npts_tot <- apply(lt_npts, 3, sum, na.rm = TRUE)
+
+# Create a data frame with year and total number of lightning-caused fires
+lt_data <- data.frame(year = time, lt_fires = lt_npts_tot)
+
+# Sum the human-caused fires across all grid cells for each year
+hu_npts_tot <- apply(hu_npts, 3, sum, na.rm = TRUE)
+
+# Create a data frame with year and total number of human-caused fires
+hu_data <- data.frame(year = time, hu_fires = hu_npts_tot)
+
+# Sum the unknown-caused fires across all grid cells for each year
+unk_npts_tot <- apply(unk_npts, 3, sum, na.rm = TRUE)
+
+# Create a data frame with year and total number of human-caused fires
+unk_data <- data.frame(year = time, unk_fires = unk_npts_tot)
+```
+
+I then merged the data frames so that I could plot them on the same plot.
+```{r fig.height=6, fig.width=10}
+# Merge hu_data, lt_data, and unk_data by year
+merged_data <- merge(merge(hu_data, lt_data, by = "year", all = TRUE), unk_data, by = "year", all = TRUE)
+
+# Extract the year from the date
+merged_data$year <- as.numeric(format(date, "%Y"))
+
+# Plot merged data with a legend
+ggplot(merged_data, aes(x = year)) +
+  geom_line(aes(y = hu_fires, color = "Human-caused Fires")) +
+  geom_line(aes(y = lt_fires, color = "Lightning-caused Fires")) +
+  geom_line(aes(y = unk_fires, color = "Unknown-caused Fires")) + 
+  labs(x = "Year", y = "Number of Fires", title = "Fire Occurrence by Cause Over Time") +
+  scale_color_manual(values = c("Human-caused Fires" = "blue", "Lightning-caused Fires" = "orange", "Unknown-caused Fires" = "red"),
+                     name = "Cause") +
+  theme_minimal()
+```
+
+Finally, using the following code I was able to calculate the year in which each cause of fire had the most fire occurrences. 
+
+- `hu_max_year <- merged_data$year[which.max(merged_data$hu_fires)]` = 2006
+- `lt_max_year <- merged_data$year[which.max(merged_data$lt_fires)]` = 2006
+- `unk_max_year <- merged_data$year[which.max(merged_data$unk_fires)]` = 2007
+
+It appears that the years with the most fire occurrences in this time period were 2006 and 2007. 
+
+## 6. Mapping Fire Occurrences by cause (1986-2013)
+Now, we can use the fire area data to visualize the spatial distribution of these fires within the time frame. 
+
+First, we need to create data sets containing fire area (separated by cause) and their locations.
+```{r}
+# create area of fire data frames lt_area
+# Filter lt_area to get non-zero and non-NA values
+non_zero_non_na_lt_area <- lt_area[!is.na(lt_area) & lt_area != 0]
+
+# Convert the filtered lt_area to a data frame
+lt_area_df <- data.frame(lt_area = non_zero_non_na_lt_area)
+
+# Filter latitude and longitude based on non-zero and non-NA lt_area values
+non_zero_non_na_lat <- lat[!is.na(lt_area) & lt_area != 0]
+non_zero_non_na_lon <- lon[!is.na(lt_area) & lt_area != 0]
+
+# Create a data frame with lt_area, latitude, and longitude
+lt_area_df <- data.frame(
+  lt_area = non_zero_non_na_lt_area,
+  lat = non_zero_non_na_lat,
+  lon = non_zero_non_na_lon
+)
+
+# create area of fire data frames hu_area
+# Filter hu_area to get non-zero and non-NA values
+non_zero_non_na_hu_area <- hu_area[!is.na(hu_area) & hu_area != 0]
+
+# Convert the filtered hu_area to a data frame
+hu_area_df <- data.frame(hu_area = non_zero_non_na_hu_area)
+
+# Filter latitude and longitude based on non-zero and non-NA hu_area values
+non_zero_non_na_lat_hu <- lat[!is.na(hu_area) & hu_area != 0]
+non_zero_non_na_lon_hu <- lon[!is.na(hu_area) & hu_area != 0]
+
+# Create a dataframe with hu_area, latitude, and longitude
+hu_area_df <- data.frame(
+  hu_area = non_zero_non_na_hu_area,
+  lat = non_zero_non_na_lat_hu,
+  lon = non_zero_non_na_lon_hu
+)
+
+# Filter unk_area to get non-zero and non-NA values
+non_zero_non_na_unk_area <- unk_area[!is.na(unk_area) & unk_area != 0]
+
+# Convert the filtered unk_area to a data frame
+unk_area_df <- data.frame(unk_area = non_zero_non_na_unk_area)
+
+# Filter latitude and longitude based on non-zero and non-NA unk_area values
+non_zero_non_na_lat_unk <- lat[!is.na(unk_area) & unk_area != 0]
+non_zero_non_na_lon_unk <- lon[!is.na(unk_area) & unk_area != 0]
+
+# Create a dataframe with unk_area, latitude, and longitude
+unk_area_df <- data.frame(
+  unk_area = non_zero_non_na_unk_area,
+  lat = non_zero_non_na_lat_unk,
+  lon = non_zero_non_na_lon_unk
+)
+```
+
+Let's load the shapefiles for plotting 
+```{r message=FALSE, warning=FALSE}
+# Load the US map including Alaska
+us_sf <- st_as_sf(maps::map("world", region = "USA", plot = FALSE, fill = TRUE))
+us_sf_states <- st_as_sf(
+  map("state", 
+      region = c("california", "nevada", "idaho", "montana", "washington", "oregon", "wyoming", "utah", "colorado", "north dakota", "south dakota", "nebraska", "kansas", "oklahoma", "texas", "minnesota", "iowa", "missouri", "arkansas", "louisiana", "wisconsin", "michigan", "illinois", "indiana", "kentucky", "tennessee", "mississippi", "alabama", "ohio", "west virginia", "virginia", "north carolina", "south carolina", "georgia", "florida", "pennsylvania", "new york", "vermont", "new hampshire", "maine", "massachusetts", "rhode island", "connecticut", "new jersey", "delaware", "maryland", "new mexico", "arizona"), 
+      plot = FALSE, 
+      fill = TRUE))
+
+
+# Load the Canada map
+canada_sf <- st_as_sf(maps::map("world", region = "Canada", plot = FALSE, fill = TRUE))
+
+# Combine the US and Canada maps
+us_canada_sf <- rbind(us_sf, canada_sf)
+```
+
+Now, let's visualize where lightning fires took place between 1986-2013.
+```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
+# Create a scatter plot of fire locations in US and CANADA lt_fires
+ggplot() +
+  geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
+  geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
+  geom_point(data = lt_area_df, aes(x = lon, y = lat, size = lt_area), color = "red", alpha = 0.3) +
+  scale_size_continuous(range = c(1, 10), labels = scales::comma, limits = c(1, 150000)) +
+  labs(x = "Longitude", y = "Latitude", title = "Fire Locations in Oregon (lt_area > 0)")+
+  theme_minimal() +
+   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
+```
+
+Next, let's look at the distribution of human-caused fires.
+```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
+# Create a scatter plot of fire locations in US and CANADA hu_fires
+ggplot() +
+  geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
+  geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
+  geom_point(data = hu_area_df, aes(x = lon, y = lat, size = hu_area), color = "red", alpha = 0.3) +
+  scale_size_continuous(range = c(1, 10), labels = scales::comma, limits = c(1, 150000)) +
+  labs(x = "Longitude", y = "Latitude", title = "Fire Locations in Oregon (hu_area > 0)")+
+  theme_minimal() +
+   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
+
+```
+
+Finally, the distribution of unkown-caused fires within the time frame. 
+```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
+# Create a scatter plot of fire locations in US and CANADA unk_fires
+ggplot() +
+  geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
+  geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
+  geom_point(data = unk_area_df, aes(x = lon, y = lat, size = unk_area), color = "red", alpha = 0.3) +
+  scale_size_continuous(range = c(1, 10), labels = scales::comma, limits = c(1, 150000)) +
+  labs(x = "Longitude", y = "Latitude", title = "Fire Locations in Oregon (unk_area > 0)")+
+  theme_minimal() +
+   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
+
+```
+
+After viewing the distribution of fires separated by their cause, we can begin to decipher trends in the data. It seems that lightning-caused fires have a more distinct trend than the human-caused or unknown-cause fires. 
+
+Lightning fires tended to cluster more densely on the western coast of the United States and more sparsely across Canada. This could have something to do with differing climatic factors in various regions of the US. Due to climate change, the West coast is experiencing warmer air temperatures which is drying out landscapes and vegetation. The dried vegetation, which accumulate in large numbers in the summer on the west coast, is prone to catching fire and spreading quickly when struck by lightning. 
+
+The human and unknown-caused fires are distributed with less of a distinct pattern. It may be hard to correlate human-caused fire patterns to a specific variable as the fires are likely accidents that became out of control. It could be said that the fires are distributed in areas where vegetation was long and dry enough to catch fire and spread quickly, but I assume that the distribution of these fires had less to do with the environment and climate within the region and rather human error. 
+
+# 7. Mapping all fire causes by size
+While mapping the distribution of fires by their cause shows us where lightning-fires and human-caused fires are potentially more prone to occur, we should delve into where the all fires were more prone to spreading. According to the paper linked at this site, https://www.researchgate.net/figure/Relationship-fire-duration-and-fire-size-Small-fires-were-defined-as-having-sizes_fig12_307833081#, "Small fires were defined as having sizes between 0-1,000 ha, medium fires between 1,000-10,000 ha, large fires between 10,000-50,000 ha, and very large fires as greater than 50,000 ha." 
+
+Let's map where medium, large, and very large size fires occurred. First, we need to create a data frame containing all fire locations and their area. 
+
+```{r}
+# create area of fire data frame all fires
+# Filter lt_area to get non-zero and non-NA values
+non_zero_non_na_all_area <- all_area[!is.na(all_area) & all_area != 0]
+
+# Convert the filtered lt_area to a dataframe
+all_df <- data.frame(all_area = non_zero_non_na_all_area)
+
+# Filter latitude and longitude based on non-zero and non-NA lt_area values
+non_zero_non_na_lat <- lat[!is.na(all_area) & all_area != 0]
+non_zero_non_na_lon <- lon[!is.na(all_area) & all_area != 0]
+
+# Create a dataframe with lt_area, latitude, and longitude
+all_area_df <- data.frame(
+  all_area = non_zero_non_na_all_area,
+  lat = non_zero_non_na_lat,
+  lon = non_zero_non_na_lon
+)
+
+```
+
+Let's plot the locations of medium-sized fires 
+```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
+# Filter the data frame
+filtered_df_medium <- all_area_df %>%
+  filter(all_area > 1000 & all_area < 10000)
+
+# Create the map
+ggplot() +
+  geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
+  geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
+  geom_point(data = filtered_df_medium, aes(x = lon, y = lat, size = all_area), color = "red", alpha = 0.3) +
+  scale_size_continuous(range = c(1, 10), name = "Area (ha)", labels = scales::comma, limits = c(1000, 10000)) +
+  labs(x = "Longitude", y = "Latitude", title = "Distribution of medium-sized fires (1,000 - 10,000 ha)") +
+  theme_minimal() +
+   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
+
+```
+
+Let's plot the locations of large-sized fires 
+```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
+# Filter the data frame
+filtered_df_large <- all_area_df %>%
+  filter(all_area > 10000 & all_area < 50000)
+
+# Create the map
+ggplot() +
+  geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
+  geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
+  geom_point(data = filtered_df_large, aes(x = lon, y = lat, size = all_area), color = "red", alpha = 0.3) +
+  scale_size_continuous(range = c(1, 10), name = "Area (ha)", labels = scales::comma, limits = c(10000, 50000)) +
+  labs(x = "Longitude", y = "Latitude", title = "The distribution of large-sized fires (10,000 - 50,000 ha)") +
+  theme_minimal() +
+   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
+```
+
+Let's plot the locations of very large-sized fires 
+```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
+# Filter the data frame
+filtered_df_vlarge <- all_area_df %>%
+  filter(all_area > 50000)
+
+# Create the map
+ggplot() +
+  geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
+  geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
+  geom_point(data = filtered_df_vlarge, aes(x = lon, y = lat, size = all_area), color = "red", alpha = 0.3) +
+  scale_size_continuous(range = c(1, 10), name = "Area (ha)", labels = scales::comma, limits = c(50000, 150000)) +
+  labs(x = "Longitude", y = "Latitude", title = "Distribution of Very large fires ( > 50,000 ha)") +
+  theme_minimal() +
+   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
+```
+
+# 8. Discussion
+**Medium-sized fires:**
+Medium-sized fires were clustered along the western states of the US and Canada. Although, there does seem to be a significant spread across the middle portion of Canada as well.  
+
+**Large-sized fires:**
+Large-sized fires had fewer occurrences, so the distribution seems a bit more sparse than the medium-sized fires distribution. However, it appears that large-sized fires still clustered towards the Western portions of both Canada and the US. Similar to the medium-sized fires, large-sized fires also seemed to occur across the middle portion of Canada. 
+
+**Very Large-sized fires:**
+Very large-sized fires (luckily) did not seem to occur as frequently as medium and large-sized fires over the time frame. Therefore, the distribution of these fires across the US is non-existent and in Canada is very sparse. 
