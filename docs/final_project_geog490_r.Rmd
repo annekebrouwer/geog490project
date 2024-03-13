@@ -1,5 +1,5 @@
 ---
-title: "GEOG 490 Final Project"
+title: "Exploring North American Fire Occurrences 1986-2013"
 author: "Anneke Brouwer"
 date: "`r Sys.Date()`"
 output: html_document
@@ -78,7 +78,7 @@ fire_counts <- data.frame(
 Next, we define a color palette and plot the data on a histogram using ggplot. 
 ```{r fig.height=6, fig.width=10}
 # Define a custom color palette
-custom_colors <- c("Human" = "blue", "Lightning" = "orange", "Unknown" = "red")
+custom_colors <- c("Human" = "tomato3", "Lightning" = "orange", "Unknown" = "indianred4")
 
 # Create the plot with custom colors
 ggplot(fire_counts, aes(x = cause, y = count, fill = cause)) +
@@ -138,7 +138,7 @@ ggplot(merged_data, aes(x = year)) +
   geom_line(aes(y = lt_fires, color = "Lightning-caused Fires")) +
   geom_line(aes(y = unk_fires, color = "Unknown-caused Fires")) + 
   labs(x = "Year", y = "Number of Fires", title = "Fire Occurrence by Cause Over Time") +
-  scale_color_manual(values = c("Human-caused Fires" = "blue", "Lightning-caused Fires" = "orange", "Unknown-caused Fires" = "red"),
+  scale_color_manual(values = c("Human-caused Fires" = "tomato3", "Lightning-caused Fires" = "orange", "Unknown-caused Fires" = "indianred4"),
                      name = "Cause") +
   theme_minimal()
 ```
@@ -157,57 +157,72 @@ Now, we can use the fire area data to visualize the spatial distribution of thes
 First, we need to create data sets containing fire area (separated by cause) and their locations.
 ```{r}
 # create area of fire data frames lt_area
-# Filter lt_area to get non-zero and non-NA values
-non_zero_non_na_lt_area <- lt_area[!is.na(lt_area) & lt_area != 0]
+# Filter out NA values from lat and lon, keeping the same rows
 
-# Convert the filtered lt_area to a data frame
-lt_area_df <- data.frame(lt_area = non_zero_non_na_lt_area)
+valid_indices <- !is.na(lat) & !is.na(lon)
+lt_area_filtered <- lt_area[valid_indices]
+lat_filtered <- lat[valid_indices]
+lon_filtered <- lon[valid_indices]
 
-# Filter latitude and longitude based on non-zero and non-NA lt_area values
-non_zero_non_na_lat <- lat[!is.na(lt_area) & lt_area != 0]
-non_zero_non_na_lon <- lon[!is.na(lt_area) & lt_area != 0]
-
-# Create a data frame with lt_area, latitude, and longitude
+# Create lt_area_df dataframe with time column included
 lt_area_df <- data.frame(
-  lt_area = non_zero_non_na_lt_area,
-  lat = non_zero_non_na_lat,
-  lon = non_zero_non_na_lon
+  lt_area = lt_area_filtered,
+  lat = lat_filtered,
+  lon = lon_filtered,
+  time = time
 )
+
+# Filter out rows with NA values in the lt_area and time variables
+lt_area_df <- lt_area_df[!is.na(lt_area_df$lt_area) & !is.na(lt_area_df$time), ]
+
+# Convert days since Jan 1, 1900 to a date format
+lt_area_df$date <- as.Date("1900-01-01") + lt_area_df$time - 1
+lt_area_df <- lt_area_df[lt_area_df$lt_area != 0, ]
+lt_area_df$year <- as.integer(format(lt_area_df$date, "%Y"))
 
 # create area of fire data frames hu_area
-# Filter hu_area to get non-zero and non-NA values
-non_zero_non_na_hu_area <- hu_area[!is.na(hu_area) & hu_area != 0]
+# Filter out NA values from lat and lon, keeping the same rows
+valid_indices_h <- !is.na(lat) & !is.na(lon)
+hu_area_filtered <- hu_area[valid_indices_h]
+lat_filtered_h <- lat[valid_indices_h]
+lon_filtered_h <- lon[valid_indices_h]
 
-# Convert the filtered hu_area to a data frame
-hu_area_df <- data.frame(hu_area = non_zero_non_na_hu_area)
-
-# Filter latitude and longitude based on non-zero and non-NA hu_area values
-non_zero_non_na_lat_hu <- lat[!is.na(hu_area) & hu_area != 0]
-non_zero_non_na_lon_hu <- lon[!is.na(hu_area) & hu_area != 0]
-
-# Create a dataframe with hu_area, latitude, and longitude
+# Create lt_area_df dataframe
 hu_area_df <- data.frame(
-  hu_area = non_zero_non_na_hu_area,
-  lat = non_zero_non_na_lat_hu,
-  lon = non_zero_non_na_lon_hu
+  hu_area = hu_area_filtered,
+  lat = lat_filtered_h,
+  lon = lon_filtered_h,
+  time = time
 )
+
+hu_area_df <- hu_area_df[!is.na(hu_area_df$hu_area) & !is.na(hu_area_df$time), ]
+
+# Convert days since Jan 1, 1900 to a date format
+hu_area_df$date <- as.Date("1900-01-01") + hu_area_df$time - 1
+hu_area_df <- hu_area_df[hu_area_df$hu_area != 0, ]
+hu_area_df$year <- as.integer(format(hu_area_df$date, "%Y"))
 
 # Filter unk_area to get non-zero and non-NA values
-non_zero_non_na_unk_area <- unk_area[!is.na(unk_area) & unk_area != 0]
+# Filter out NA values from lat and lon, keeping the same rows
+valid_indices_u <- !is.na(lat) & !is.na(lon)
+unk_area_filtered <- unk_area[valid_indices_u]
+lat_filtered_u <- lat[valid_indices_u]
+lon_filtered_u <- lon[valid_indices_u]
 
-# Convert the filtered unk_area to a data frame
-unk_area_df <- data.frame(unk_area = non_zero_non_na_unk_area)
-
-# Filter latitude and longitude based on non-zero and non-NA unk_area values
-non_zero_non_na_lat_unk <- lat[!is.na(unk_area) & unk_area != 0]
-non_zero_non_na_lon_unk <- lon[!is.na(unk_area) & unk_area != 0]
-
-# Create a dataframe with unk_area, latitude, and longitude
+# Create lt_area_df dataframe
 unk_area_df <- data.frame(
-  unk_area = non_zero_non_na_unk_area,
-  lat = non_zero_non_na_lat_unk,
-  lon = non_zero_non_na_lon_unk
+  unk_area = unk_area_filtered,
+  lat = lat_filtered_u,
+  lon = lon_filtered_u,
+  time = time
 )
+unk_area_df <- unk_area_df[!is.na(unk_area_df$unk_area) & !is.na(unk_area_df$time), ]
+
+
+# Convert days since Jan 1, 1900 to a date format
+unk_area_df$date <- as.Date("1900-01-01") + unk_area_df$time - 1
+unk_area_df <- unk_area_df[unk_area_df$unk_area != 0, ]
+unk_area_df$year <- as.integer(format(unk_area_df$date, "%Y"))
 ```
 
 Let's load the shapefiles for plotting 
@@ -232,91 +247,76 @@ Now, let's visualize where lightning fires took place between 1986-2013.
 ```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
 # Create a scatter plot of fire locations in US and CANADA lt_fires
 ggplot() +
+  geom_point(data = lt_area_df, aes(x = lon, y = lat), color = "orange", alpha = 0.1, size = 0.01) +
   geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
   geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
-  geom_point(data = lt_area_df, aes(x = lon, y = lat, size = lt_area), color = "red", alpha = 0.3) +
-  scale_size_continuous(range = c(1, 10), labels = scales::comma, limits = c(1, 150000)) +
-  labs(x = "Longitude", y = "Latitude", title = "Fire Locations in Oregon (lt_area > 0)")+
+  labs(x = "Longitude", y = "Latitude", title = "Lightning Fire Locations in North America (lt_area > 0)")+
   theme_minimal() +
-   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
+  coord_sf(xlim = c(-180, -50), ylim = c(22, 85))
 ```
 
 Next, let's look at the distribution of human-caused fires.
 ```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
 # Create a scatter plot of fire locations in US and CANADA hu_fires
 ggplot() +
+  geom_point(data = hu_area_df, aes(x = lon, y = lat), color = "tomato3", alpha = 0.1, size = .01) +
   geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
-  geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
-  geom_point(data = hu_area_df, aes(x = lon, y = lat, size = hu_area), color = "red", alpha = 0.3) +
-  scale_size_continuous(range = c(1, 10), labels = scales::comma, limits = c(1, 150000)) +
-  labs(x = "Longitude", y = "Latitude", title = "Fire Locations in Oregon (hu_area > 0)")+
+  geom_sf(data = us_sf_states, fill = "transparent", color = "black") + 
+  labs(x = "Longitude", y = "Latitude", title = "Human-caused Fire Locations in North America (hu_area > 0)")+
   theme_minimal() +
-   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
+  coord_sf(xlim = c(-180, -50), ylim = c(22, 85))
 
 ```
 
-Finally, the distribution of unkown-caused fires within the time frame. 
+Finally, the distribution of unknown-caused fires within the time frame. 
 ```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
 # Create a scatter plot of fire locations in US and CANADA unk_fires
 ggplot() +
+  geom_point(data = unk_area_df, aes(x = lon, y = lat), color = "indianred4", alpha = 0.1, size = 0.01) +
   geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
   geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
-  geom_point(data = unk_area_df, aes(x = lon, y = lat, size = unk_area), color = "red", alpha = 0.3) +
-  scale_size_continuous(range = c(1, 10), labels = scales::comma, limits = c(1, 150000)) +
-  labs(x = "Longitude", y = "Latitude", title = "Fire Locations in Oregon (unk_area > 0)")+
+  labs(x = "Longitude", y = "Latitude", title = "Location of fires with an unknown cause in North America (unk_area > 0)")+
   theme_minimal() +
-   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
+  coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
 
 ```
 
-After viewing the distribution of fires separated by their cause, we can begin to decipher trends in the data. It seems that lightning-caused fires have a more distinct trend than the human-caused or unknown-cause fires. 
 
-Lightning fires tended to cluster more densely on the western coast of the United States and more sparsely across Canada. This could have something to do with differing climatic factors in various regions of the US. Due to climate change, the West coast is experiencing warmer air temperatures which is drying out landscapes and vegetation. The dried vegetation, which accumulate in large numbers in the summer on the west coast, is prone to catching fire and spreading quickly when struck by lightning. 
+The spatial distribution of fires, categorized by their causes, reveals patterns and trends. Lightning-induced fires exhibit a clustering, particularly prevalent in the Western and southeastern coastal regions of the United States, as well as across Canada. This clustering aligns with established meteorological patterns, as most lightning storms occur in tropical and subtropical regions—which encompasses the southern United States. Moreover, the combination of increased temperatures, drought conditions, forested areas, and specific wind patterns prevalent in western US states and Canada creates an environment conducive to the ignition and spread of fires, especially during the summer and early fall months. 
 
-The human and unknown-caused fires are distributed with less of a distinct pattern. It may be hard to correlate human-caused fire patterns to a specific variable as the fires are likely accidents that became out of control. It could be said that the fires are distributed in areas where vegetation was long and dry enough to catch fire and spread quickly, but I assume that the distribution of these fires had less to do with the environment and climate within the region and rather human error. 
+Human-caused fires exhibit a less pronounced spatial pattern compared to lightning-induced fires. While human-caused fires show a relatively even distribution across the United States, with a higher density along coastal states, their occurrence in Canada appears less frequent. Interestingly, there were more human-caused fires in the central US than lightning fires, suggesting a potentially different underlying cause. 
+
+The distribution of human-caused fires may not be easily attributed to specific environmental variables, as these fires are often the result of accidental ignition that escalates out of control. Instead, the occurrence of these fires might be more closely linked to factors such as human activity and land use patterns.
+
+Unknown-caused fires, on the other hand, display little discernible pattern in their distribution. There seems to be some clustering in North Carolina and South Carolina and other southeastern states, but otherwise the distribution is much more sparse than the others. It is challenging to attribute a specific cause or environmental factor to these fires, as their origins are unclear. 
 
 # 7. Mapping all fire causes by size
 While mapping the distribution of fires by their cause shows us where lightning-fires and human-caused fires are potentially more prone to occur, we should delve into where the all fires were more prone to spreading. According to the paper linked at this site, https://www.researchgate.net/figure/Relationship-fire-duration-and-fire-size-Small-fires-were-defined-as-having-sizes_fig12_307833081#, "Small fires were defined as having sizes between 0-1,000 ha, medium fires between 1,000-10,000 ha, large fires between 10,000-50,000 ha, and very large fires as greater than 50,000 ha." 
 
-Let's map where medium, large, and very large size fires occurred. First, we need to create a data frame containing all fire locations and their area. 
+Let's map where large and very large size fires occurred. First, we need to create a data frame containing all fire locations and their area. 
 
 ```{r}
 # create area of fire data frame all fires
-# Filter lt_area to get non-zero and non-NA values
-non_zero_non_na_all_area <- all_area[!is.na(all_area) & all_area != 0]
+# Filter out NA values from lat and lon, keeping the same rows
+valid_indices_all <- !is.na(lat) & !is.na(lon)
+all_area_filtered <- all_area[valid_indices_all]
+lat_filtered_all <- lat[valid_indices_all]
+lon_filtered_all <- lon[valid_indices_all]
 
-# Convert the filtered lt_area to a dataframe
-all_df <- data.frame(all_area = non_zero_non_na_all_area)
-
-# Filter latitude and longitude based on non-zero and non-NA lt_area values
-non_zero_non_na_lat <- lat[!is.na(all_area) & all_area != 0]
-non_zero_non_na_lon <- lon[!is.na(all_area) & all_area != 0]
-
-# Create a dataframe with lt_area, latitude, and longitude
 all_area_df <- data.frame(
-  all_area = non_zero_non_na_all_area,
-  lat = non_zero_non_na_lat,
-  lon = non_zero_non_na_lon
+  all_area = all_area_filtered,
+  lat = lat_filtered_all,
+  lon = lon_filtered_all,
+  time = time
 )
+all_area_df <- all_area_df[!is.na(all_area_df$all_area) & !is.na(all_area_df$time), ]
 
-```
+# Convert days since Jan 1, 1900 to a date format
+all_area_df$date <- as.Date("1900-01-01") + 
+all_area_df$time - 1
 
-Let's plot the locations of medium-sized fires 
-```{r message=FALSE, warning=FALSE, fig.height=8, fig.width=12}
-# Filter the data frame
-filtered_df_medium <- all_area_df %>%
-  filter(all_area > 1000 & all_area < 10000)
-
-# Create the map
-ggplot() +
-  geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
-  geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
-  geom_point(data = filtered_df_medium, aes(x = lon, y = lat, size = all_area), color = "red", alpha = 0.3) +
-  scale_size_continuous(range = c(1, 10), name = "Area (ha)", labels = scales::comma, limits = c(1000, 10000)) +
-  labs(x = "Longitude", y = "Latitude", title = "Distribution of medium-sized fires (1,000 - 10,000 ha)") +
-  theme_minimal() +
-   coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
-
+all_area_df <- all_area_df[all_area_df$all_area != 0, ]
+all_area_df$year <- as.integer(format(all_area_df$date, "%Y"))
 ```
 
 Let's plot the locations of large-sized fires 
@@ -329,8 +329,8 @@ filtered_df_large <- all_area_df %>%
 ggplot() +
   geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
   geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
-  geom_point(data = filtered_df_large, aes(x = lon, y = lat, size = all_area), color = "red", alpha = 0.3) +
-  scale_size_continuous(range = c(1, 10), name = "Area (ha)", labels = scales::comma, limits = c(10000, 50000)) +
+  geom_point(data = filtered_df_large, aes(x = lon, y = lat, size = all_area), color = "indianred2", alpha = 0.2, stroke = 1) +
+  scale_size_continuous(range = c(1, 10), name = "Area (ha)", labels = scales::comma, limits = c(10000, 50000), breaks = c(10000, 20000, 30000, 40000, 50000)) +
   labs(x = "Longitude", y = "Latitude", title = "The distribution of large-sized fires (10,000 - 50,000 ha)") +
   theme_minimal() +
    coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
@@ -346,19 +346,15 @@ filtered_df_vlarge <- all_area_df %>%
 ggplot() +
   geom_sf(data = us_canada_sf, fill = "transparent", color = "black") +
   geom_sf(data = us_sf_states, fill = "transparent", color = "black") +
-  geom_point(data = filtered_df_vlarge, aes(x = lon, y = lat, size = all_area), color = "red", alpha = 0.3) +
-  scale_size_continuous(range = c(1, 10), name = "Area (ha)", labels = scales::comma, limits = c(50000, 150000)) +
+  geom_point(data = filtered_df_vlarge, aes(x = lon, y = lat, size = all_area), color = "indianred2", alpha = 0.2, stroke = 1) +
+  scale_size_continuous(range = c(1, 10), name = "Area (ha)", labels = scales::comma, limits = c(50000, 500000),  breaks = c(50000, 200000, 350000, 500000)) +
   labs(x = "Longitude", y = "Latitude", title = "Distribution of Very large fires ( > 50,000 ha)") +
   theme_minimal() +
    coord_sf(xlim = c(-180, -50), ylim = c(22, 85)) 
 ```
 
-# 8. Discussion
-**Medium-sized fires:**
-Medium-sized fires were clustered along the western states of the US and Canada. Although, there does seem to be a significant spread across the middle portion of Canada as well.  
-
 **Large-sized fires:**
-Large-sized fires had fewer occurrences, so the distribution seems a bit more sparse than the medium-sized fires distribution. However, it appears that large-sized fires still clustered towards the Western portions of both Canada and the US. Similar to the medium-sized fires, large-sized fires also seemed to occur across the middle portion of Canada. 
+It appears that large-sized fires clustered towards the Western portions of both Canada and the US. In addition to this, large-sized fires also seemed to occur frequently across the middle portion of Canada. These regions may have a higher density of dried vegetation or abundant vegetation that is more susceptible to ignition and rapid spread of fires. This clustering pattern could be indicative of specific land use practices, vegetation types, or environmental conditions that contribute to the increased occurrence of large-sized fires in these areas
 
 **Very Large-sized fires:**
-Very large-sized fires (luckily) did not seem to occur as frequently as medium and large-sized fires over the time frame. Therefore, the distribution of these fires across the US is non-existent and in Canada is very sparse. 
+The frequency of very large-sized fires appeared to be lower compared to large-sized fires throughout the observed time frame. Interestingly, very large-sized fires were more prevalent in Canada than in the United States. This disparity could potentially be attributed to a shift in climate conditions as one moves northward, with environmental factors in Canada possibly favoring the occurrence of very large-sized fires compared to the US. This observation underscores the influence of climate and environmental conditions on fire behavior and highlights the need for region-specific fire management strategies. 
